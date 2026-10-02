@@ -24,6 +24,17 @@
       </span>
     </p>
 
+    <form class="filter-bar" @submit.prevent="exportMaterials">
+      <label class="filter-item">
+        <span>演练日期（当期）</span>
+        <input v-model="exportPeriod" type="date" />
+      </label>
+      <button class="btn primary" type="submit">导出评估材料分包</button>
+      <button class="btn ghost" type="button" @click="resetExportPeriod">回到最新一期</button>
+    </form>
+    <p v-if="exportMessage" class="page-desc">{{ exportMessage }}</p>
+    <p v-if="exportError" class="error-text">{{ exportError }}</p>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -74,7 +85,9 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  downloadDrillMaterials,
   downloadEntries,
+  latestDrillPeriod,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -91,6 +104,9 @@ const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
+const exportPeriod = ref('')
+const exportMessage = ref('')
+const exportError = ref('')
 const filterFields = columns.slice(0, 3)
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
@@ -106,6 +122,23 @@ function resetFilters() {
 
 function exportRows() {
   downloadEntries(meta.key)
+}
+
+function exportMaterials() {
+  exportMessage.value = ''
+  exportError.value = ''
+  const result = downloadDrillMaterials(exportPeriod.value)
+  if (!result.ok) {
+    exportError.value = result.message
+    return
+  }
+  exportMessage.value = result.message
+  // 导出可能把精度不够的演练退回校准（台账标异常），列表刷新一遍保持一致。
+  reload()
+}
+
+function resetExportPeriod() {
+  exportPeriod.value = latestDrillPeriod()
 }
 
 function openCreate() {
@@ -133,5 +166,8 @@ function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  exportPeriod.value = latestDrillPeriod()
+  reload()
+})
 </script>
