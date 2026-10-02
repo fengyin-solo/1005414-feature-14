@@ -8,6 +8,7 @@
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记应急演练</button>
         <button class="btn" type="button" @click="exportRows">导出应急演练清单</button>
+        <button class="btn" type="button" @click="exportMaterials">导出评估材料包</button>
       </div>
     </header>
 
@@ -65,6 +66,7 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条应急演练记录</span>
+      <span v-if="noticeMessage" class="ok-text">{{ noticeMessage }}</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -75,6 +77,8 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  downloadDrillMaterials,
+  drillSummary,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -85,11 +89,12 @@ const meta = moduleMeta('drill')
 const columns = ["演练编号", "演练主题", "参演队伍", "参演人数", "演练日期", "演练科目", "评估结论", "演练状态"]
 const actions = ["确认组织", "提交评估", "取消演练"]
 const statuses = ["待组织", "已组织", "已评估", "已取消"]
-const stats = [{"label": "待组织演练", "value": 0}, {"label": "已评估演练", "value": 0}, {"label": "参演人数合计", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
+const stats = ref<{ label: string; value: number }[]>([])
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
 const statusSummary = computed(() =>
@@ -108,6 +113,17 @@ function exportRows() {
   downloadEntries(meta.key)
 }
 
+function exportMaterials() {
+  errorMessage.value = ''
+  noticeMessage.value = ''
+  const result = downloadDrillMaterials()
+  if (!result.ok) {
+    errorMessage.value = result.message
+    return
+  }
+  noticeMessage.value = result.message
+}
+
 function openCreate() {
   errorMessage.value = '应急演练登记入口尚未接入审批流'
 }
@@ -124,10 +140,12 @@ function runAction(action: string, row: EntryRow) {
 
 function reload() {
   errorMessage.value = ''
+  noticeMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    stats.value = drillSummary()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '应急演练列表读取失败'
   }
